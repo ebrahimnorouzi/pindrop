@@ -6,16 +6,22 @@ Every day it gives you **one** random "drop" — a mystery coordinate within rea
 you are. Go find out what's there, film it, post it. The point is **pinned for the whole
 day**, so a reload shows the same target; a fresh one is drawn at local midnight.
 
-> 🌐 Light theme · 🌍 Bilingual **English / فارسی** (with full RTL) · 📱 Works great on phones · 🔐 No API keys, no backend.
+> 🌐 Light **&** dark theme · 🌍 Bilingual **English / فارسی** (with full RTL) · 📱 Installable PWA · 🔐 No API keys, no backend.
 
 ## ✨ Features
-- **One drop a day**, deterministically seeded from the date — reproducible even if storage is cleared.
-- Shows **coordinates, distance, bearing + compass** and a clean light Leaflet map (CARTO tiles) with the radius ring.
-- One-tap links to **Directions / Google Maps / OpenStreetMap**, plus a **Share** button (Web Share API → clipboard fallback) for video intros.
+- **One drop a day**, deterministically seeded from the date — reproducible even if storage is cleared, pinned until local midnight.
+- **Coordinates, distance, bearing + compass** on a Leaflet map with the radius ring, "you are here" marker, and a line to the target.
+- **Map style switcher** — Light / Dark / Satellite (CARTO + Esri tiles, no key).
+- **🧲 Live compass navigation** — uses the device's orientation sensor to point a needle at today's drop with "turn left/right" guidance (great while filming on location).
+- **🖼️ Shareable drop-card generator** — renders a branded 1080×1080 image (coords, distance, bearing, mini-compass, Drop No., date, channel handle) you can **download or share** straight into a video intro / story.
+- **📊 Expedition log** — day-streak counter, total drops, total distance, and your recent drops with quick map links.
+- **⏱️ Live countdown** to the next drop; auto-refreshes at midnight.
+- **⚙️ Settings** — adjustable drop **radius**, **km/mi** units, theme, and language; all saved on-device.
 - **GPS with graceful fallback**: denied location? Enter coordinates manually or use a fallback city.
-- **Language toggle** (EN ⇄ فارسی) with Persian numerals and right-to-left layout; choice is remembered.
+- **Light / Dark / Auto theme** that follows the system, plus a one-tap toggle. **Persian numerals** and RTL throughout.
+- **Copy coordinates**, one-tap **Directions / Google Maps / OpenStreetMap**, native **Share** (Web Share API → clipboard fallback).
 - Links straight to the channel's **YouTube** and **Instagram**.
-- Accessible: visible focus styles, `prefers-reduced-motion` respected, strong contrast.
+- **Installable** (PWA manifest) and **accessible**: visible focus styles, `prefers-reduced-motion` respected, strong contrast.
 
 ## 🛠️ Configure
 Everything tweakable lives in the `CONFIG` object at the top of the `<script>` in `index.html`:
@@ -37,13 +43,14 @@ Everything tweakable lives in the `CONFIG` object at the top of the `<script>` i
 
 ## 📦 Constraints
 Single self-contained `index.html`: no build step, no backend, no framework, no bundler.
-The only external dependencies are **Leaflet** (via cdnjs) and **CARTO** map tiles.
+External dependencies are **Leaflet** (via cdnjs), **CARTO** + **Esri** map tiles, and **Google Fonts**
+(Inter / Vazirmatn) — the fonts degrade gracefully to system fonts if blocked.
 
 ## 🧭 Backlog / ideas
 - "Water only" / "land only" filter for the drop.
 - Exclude-roads / "properly wild" mode.
-- Auto-generated shareable drop-card image for video intros.
 - Optional live re-anchor mode (always X km from your current position — no fixed target).
+- Offline support via a service worker (needs a second file, so it's intentionally left out for now).
 
 ---
 Built for the PinDrop Challenge · drops are random & for fun — explore safely and respect private property.
