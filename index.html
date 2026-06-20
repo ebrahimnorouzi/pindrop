@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PinDrop Challenge — your daily random adventure</title>
+  <meta name="description" content="One random drop a day. Get a mystery coordinate within reach of where you are, then go find out what's there. Follow the PinDrop Challenge." />
+  <meta name="theme-color" content="#e11d48" />
+
+  <!-- Open Graph / social preview -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="PinDrop Challenge — your daily random adventure" />
+  <meta property="og:description" content="One mystery drop a day, within reach of where you are. Go find out what's there." />
+  <meta property="og:site_name" content="PinDrop Challenge" />
+
+  <!-- Emoji favicon, no extra files -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📍</text></svg>" />
+
+  <!-- Leaflet (cdnjs) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" referrerpolicy="no-referrer" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" referrerpolicy="no-referrer"></script>
+
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --bg-glow-1: #ffe1e8;
+      --bg-glow-2: #dcefff;
+      --card: #ffffff;
+      --ink: #14233b;
+      --ink-soft: #5a6b85;
+      --line: #e3e9f2;
+      --accent: #e11d48;
+      --accent-soft: #ffe4ea;
+      --accent-ink: #9f1239;
+      --teal: #0d9488;
+      --teal-soft: #d3f5ef;
+      --shadow: 0 10px 30px -12px rgba(20, 35, 59, 0.25);
+      --shadow-sm: 0 4px 14px -8px rgba(20, 35, 59, 0.3);
+      --radius: 18px;
+      --radius-sm: 12px;
+      --maxw: 980px;
+      --font: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    /* Farsi gets a typeface that handles Persian glyphs gracefully */
+    html[lang="fa"] {
+      --font: "Vazirmatn", "Segoe UI", Tahoma, system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      color: var(--ink);
+      background:
+        radial-gradient(60% 50% at 12% -5%, var(--bg-glow-1), transparent 60%),
+        radial-gradient(55% 45% at 100% 0%, var(--bg-glow-2), transparent 55%),
+        var(--bg);
+      min-height: 100vh;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .wrap { max-width: var(--maxw); margin: 0 auto; padding: 22px 18px 48px; }
+
+    /* ---------- Header ---------- */
+    header.site {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 22px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand .pin {
+      font-size: 30px;
+      line-height: 1;
+      filter: drop-shadow(0 4px 6px rgba(225,29,72,.35));
+      animation: bob 3.2s ease-in-out infinite;
+    }
+    @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+    .brand h1 { font-size: 1.28rem; margin: 0; letter-spacing: -0.5px; }
+    .brand .tag { margin: 0; font-size: .78rem; color: var(--ink-soft); }
+
+    .header-tools { display: flex; align-items: center; gap: 8px; }
+
+    .lang-toggle {
+      display: inline-flex;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px;
+      box-shadow: var(--shadow-sm);
+    }
+    .lang-toggle button {
+      border: 0; background: transparent; cursor: pointer;
+      font: inherit; font-size: .82rem; font-weight: 600;
+      color: var(--ink-soft);
+      padding: 6px 12px; border-radius: 999px;
+      transition: background .18s, color .18s;
+    }
+    .lang-toggle button[aria-pressed="true"] {
+      background: var(--accent); color: #fff;
+    }
+
+    .icon-link {
+      width: 40px; height: 40px;
+      display: inline-grid; place-items: center;
+      border-radius: 12px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      color: var(--ink);
+      box-shadow: var(--shadow-sm);
+      transition: transform .15s, color .15s, border-color .15s;
+    }
+    .icon-link:hover { transform: translateY(-2px); }
+    .icon-link.yt:hover { color: #ff0000; border-color: #ffc9c9; }
+    .icon-link.ig:hover { color: #c13584; border-color: #f3c9e6; }
+    .icon-link svg { width: 20px; height: 20px; }
+
+    /* ---------- Hero / drop card ---------- */
+    .hero {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .hero-head {
+      padding: 20px 22px 16px;
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .hero-head .eyebrow {
+      font-size: .72rem; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--accent); margin: 0 0 4px;
+    }
+    .hero-head h2 { margin: 0; font-size: 1.5rem; letter-spacing: -0.6px; }
+    .dropno {
+      background: var(--accent-soft); color: var(--accent-ink);
+      border-radius: 12px; padding: 8px 12px; text-align: center; white-space: nowrap;
+    }
+    .dropno .n { display: block; font-size: 1.35rem; font-weight: 800; line-height: 1; }
+    .dropno .l { font-size: .64rem; letter-spacing: 1px; text-transform: uppercase; }
+
+    #map {
+      height: 380px; width: 100%;
+      background: #e9eef5;
+      outline: none;
+    }
+    html[dir="rtl"] .leaflet-container { text-align: right; }
+
+    /* status / loading line over the map */
+    .statusbar {
+      padding: 12px 22px;
+      font-size: .9rem; color: var(--ink-soft);
+      display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid var(--line);
+      min-height: 46px;
+    }
+    .dot {
+      width: 9px; height: 9px; border-radius: 50%; background: var(--teal);
+      box-shadow: 0 0 0 0 rgba(13,148,136,.5);
+      animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(13,148,136,.5); }
+      70% { box-shadow: 0 0 0 9px rgba(13,148,136,0); }
+      100% { box-shadow: 0 0 0 0 rgba(13,148,136,0); }
+    }
+
+    /* ---------- Stats ---------- */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--line);
+    }
+    .stat { background: var(--card); padding: 16px 18px; }
+    .stat .k { font-size: .68rem; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-soft); margin: 0 0 4px; }
+    .stat .v { font-size: 1.18rem; font-weight: 700; margin: 0; font-variant-numeric: tabular-nums; }
+    .stat .v small { font-weight: 500; color: var(--ink-soft); font-size: .8rem; }
+    .compass-emoji { font-size: 1.05rem; }
+
+    /* ---------- Actions ---------- */
+    .actions {
+      padding: 16px 18px;
+      display: flex; flex-wrap: wrap; gap: 10px;
+    }
+    .btn {
+      appearance: none; cursor: pointer; font: inherit; font-weight: 600;
+      border-radius: var(--radius-sm); padding: 11px 16px;
+      display: inline-flex; align-items: center; gap: 8px;
+      border: 1px solid var(--line); background: var(--card); color: var(--ink);
+      text-decoration: none; transition: transform .12s, background .15s, border-color .15s;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover { background: #c81742; }
+    .btn.teal { background: var(--teal-soft); border-color: #b6ece4; color: #0b6e66; }
+
+    /* ---------- Manual entry panel ---------- */
+    .panel {
+      margin-top: 18px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: 18px 20px;
+    }
+    .panel h3 { margin: 0 0 4px; font-size: 1.05rem; }
+    .panel p.hint { margin: 0 0 14px; color: var(--ink-soft); font-size: .9rem; }
+    .field-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label { font-size: .76rem; font-weight: 600; color: var(--ink-soft); }
+    .field input {
+      font: inherit; padding: 10px 12px; border-radius: 10px;
+      border: 1px solid var(--line); background: #fbfcfe; color: var(--ink);
+      width: 150px;
+    }
+    .field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .hidden { display: none !important; }
+
+    /* ---------- How it works ---------- */
+    .how {
+      margin-top: 22px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+    }
+    .how .step {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow-sm);
+    }
+    .how .step .num {
+      width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+      background: var(--accent-soft); color: var(--accent-ink); font-weight: 800; margin-bottom: 10px;
+    }
+    .how .step h4 { margin: 0 0 4px; font-size: .98rem; }
+    .how .step p { margin: 0; font-size: .86rem; color: var(--ink-soft); }
+
+    /* ---------- Channel CTA ---------- */
+    .cta {
+      margin-top: 22px;
+      background: linear-gradient(120deg, #fff 0%, #fff 55%, var(--accent-soft) 140%);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px;
+      display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap;
+    }
+    .cta .copy h3 { margin: 0 0 4px; font-size: 1.25rem; letter-spacing: -0.4px; }
+    .cta .copy p { margin: 0; color: var(--ink-soft); }
+    .cta .links { display: flex; gap: 10px; flex-wrap: wrap; }
+    .social-btn {
+      display: inline-flex; align-items: center; gap: 9px;
+      padding: 11px 16px; border-radius: 12px; font-weight: 700; text-decoration: none;
+      color: #fff; transition: transform .12s, filter .15s;
+    }
+    .social-btn:hover { transform: translateY(-2px); filter: brightness(1.05); }
+    .social-btn svg { width: 20px; height: 20px; }
+    .social-btn.yt { background: #ff0000; }
+    .social-btn.ig { background: linear-gradient(45deg, #f09433, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888); }
+
+    /* ---------- Footer ---------- */
+    footer.site {
+      margin-top: 30px; text-align: center; color: var(--ink-soft); font-size: .82rem;
+    }
+    footer.site a { color: var(--accent-ink); }
+
+    /* toast */
+    .toast {
+      position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
+      background: var(--ink); color: #fff; padding: 11px 18px; border-radius: 12px;
+      box-shadow: var(--shadow); opacity: 0; pointer-events: none;
+      transition: opacity .2s, transform .2s; z-index: 9999; font-size: .9rem;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* focus visibility everywhere */
+    a:focus-visible, button:focus-visible, input:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px;
+    }
+
+    @media (max-width: 720px) {
+      .stats { grid-template-columns: 1fr 1fr; }
+      .stats .stat:last-child { grid-column: span 2; }
+      .how { grid-template-columns: 1fr; }
+      .hero-head h2 { font-size: 1.25rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <!-- ============ HEADER ============ -->
+    <header class="site">
+      <div class="brand">
+        <span class="pin" aria-hidden="true">📍</span>
+        <div>
+          <h1 data-i18n="brand">PinDrop Challenge</h1>
+          <p class="tag" data-i18n="brandTag">One random drop a day. Go find out what's there.</p>
+        </div>
+      </div>
+      <div class="header-tools">
+        <div class="lang-toggle" role="group" aria-label="Language">
+          <button type="button" id="lang-en" aria-pressed="true">EN</button>
+          <button type="button" id="lang-fa" aria-pressed="false" lang="fa">فارسی</button>
+        </div>
+        <a class="icon-link yt" id="yt-icon" href="#" target="_blank" rel="noopener" aria-label="YouTube">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8zM9.6 15.6V8.4l6.2 3.6-6.2 3.6z"/></svg>
+        </a>
+        <a class="icon-link ig" id="ig-icon" href="#" target="_blank" rel="noopener" aria-label="Instagram">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.2c3.2 0 3.6 0 4.9.07 1.17.05 1.8.25 2.23.41.56.22.96.48 1.38.9.42.42.68.82.9 1.38.16.42.36 1.06.41 2.23.06 1.3.07 1.69.07 4.9s0 3.6-.07 4.9c-.05 1.17-.25 1.8-.41 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.42.16-1.06.36-2.23.41-1.3.06-1.69.07-4.9.07s-3.6 0-4.9-.07c-1.17-.05-1.8-.25-2.23-.41a3.7 3.7 0 0 1-1.38-.9 3.7 3.7 0 0 1-.9-1.38c-.16-.42-.36-1.06-.41-2.23C2.2 15.6 2.2 15.2 2.2 12s0-3.6.07-4.9c.05-1.17.25-1.8.41-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.42-.16 1.06-.36 2.23-.41C8.4 2.2 8.8 2.2 12 2.2zm0 1.8c-3.15 0-3.52.01-4.76.07-.9.04-1.39.19-1.71.32-.43.17-.74.37-1.06.69-.32.32-.52.63-.69 1.06-.13.32-.28.81-.32 1.71C3.4 8.48 3.4 8.85 3.4 12s0 3.52.06 4.76c.04.9.19 1.39.32 1.71.17.43.37.74.69 1.06.32.32.63.52 1.06.69.32.13.81.28 1.71.32 1.24.06 1.61.07 4.76.07s3.52 0 4.76-.07c.9-.04 1.39-.19 1.71-.32.43-.17.74-.37 1.06-.69.32-.32.52-.63.69-1.06.13-.32.28-.81.32-1.71.06-1.24.07-1.61.07-4.76s0-3.52-.07-4.76c-.04-.9-.19-1.39-.32-1.71a2.85 2.85 0 0 0-.69-1.06 2.85 2.85 0 0 0-1.06-.69c-.32-.13-.81-.28-1.71-.32C15.52 4 15.15 4 12 4zm0 3.06A4.94 4.94 0 1 1 12 17a4.94 4.94 0 0 1 0-9.88zm0 1.8a3.14 3.14 0 1 0 0 6.28 3.14 3.14 0 0 0 0-6.28zm5.15-.3a1.15 1.15 0 1 1-2.3 0 1.15 1.15 0 0 1 2.3 0z"/></svg>
+        </a>
+      </div>
+    </header>
+
+    <!-- ============ DROP CARD ============ -->
+    <section class="hero" aria-labelledby="drop-title">
+      <div class="hero-head">
+        <div>
+          <p class="eyebrow" data-i18n="todayEyebrow">Today's mission</p>
+          <h2 id="drop-title" data-i18n="dropTitle">Your drop is being plotted…</h2>
+        </div>
+        <div class="dropno" title="Drop number since launch">
+          <span class="n" id="dropno-n">—</span>
+          <span class="l" data-i18n="dropNoLabel">Drop No.</span>
+        </div>
+      </div>
+
+      <div class="statusbar" id="statusbar">
+        <span class="dot" id="status-dot" aria-hidden="true"></span>
+        <span id="status-text" data-i18n="statusLocating">Locating you… allow location to get today's drop.</span>
+      </div>
+
+      <div id="map" tabindex="0" aria-label="Map showing your origin and today's drop"></div>
+
+      <div class="stats">
+        <div class="stat">
+          <p class="k" data-i18n="statCoords">Coordinates</p>
+          <p class="v" id="stat-coords">—</p>
+        </div>
+        <div class="stat">
+          <p class="k" data-i18n="statDistance">Distance</p>
+          <p class="v" id="stat-distance">—</p>
+        </div>
+        <div class="stat">
+          <p class="k" data-i18n="statBearing">Bearing</p>
+          <p class="v" id="stat-bearing">—</p>
+        </div>
+      </div>
+
+      <div class="actions">
+        <a class="btn primary" id="act-directions" href="#" target="_blank" rel="noopener" data-i18n="actDirections">🧭 Directions</a>
+        <a class="btn" id="act-gmaps" href="#" target="_blank" rel="noopener" data-i18n="actGmaps">Google Maps</a>
+        <a class="btn" id="act-osm" href="#" target="_blank" rel="noopener" data-i18n="actOsm">OpenStreetMap</a>
+        <button class="btn teal" id="act-share" type="button" data-i18n="actShare">🔗 Share drop</button>
+        <button class="btn" id="act-manual" type="button" data-i18n="actManual">Set location manually</button>
+      </div>
+    </section>
+
+    <!-- ============ MANUAL ENTRY ============ -->
+    <section class="panel hidden" id="manual-panel" aria-labelledby="manual-title">
+      <h3 id="manual-title" data-i18n="manualTitle">Set your starting point</h3>
+      <p class="hint" data-i18n="manualHint">No GPS? Enter coordinates, or use the fallback city. Today's drop is plotted from here.</p>
+      <div class="field-row">
+        <div class="field">
+          <label for="in-lat" data-i18n="labelLat">Latitude</label>
+          <input type="number" id="in-lat" step="0.0001" placeholder="35.6892" inputmode="decimal" />
+        </div>
+        <div class="field">
+          <label for="in-lng" data-i18n="labelLng">Longitude</label>
+          <input type="number" id="in-lng" step="0.0001" placeholder="51.3890" inputmode="decimal" />
+        </div>
+        <button class="btn primary" id="manual-go" type="button" data-i18n="manualGo">Plot drop</button>
+        <button class="btn" id="manual-city" type="button" data-i18n="manualCity">Use fallback city</button>
+      </div>
+    </section>
+
+    <!-- ============ HOW IT WORKS ============ -->
+    <section class="how" aria-label="How it works">
+      <div class="step">
+        <div class="num">1</div>
+        <h4 data-i18n="how1Title">Allow location</h4>
+        <p data-i18n="how1Body">The app reads where you are — it never leaves your device.</p>
+      </div>
+      <div class="step">
+        <div class="num">2</div>
+        <h4 data-i18n="how2Title">Get your drop</h4>
+        <p data-i18n="how2Body">A single random point is pinned within reach. Same point all day.</p>
+      </div>
+      <div class="step">
+        <div class="num">3</div>
+        <h4 data-i18n="how3Title">Go & film it</h4>
+        <p data-i18n="how3Body">Head to the coordinate, see what you find, share the adventure.</p>
+      </div>
+    </section>
+
+    <!-- ============ CHANNEL CTA ============ -->
+    <section class="cta">
+      <div class="copy">
+        <h3 data-i18n="ctaTitle">Watch the challenge unfold</h3>
+        <p data-i18n="ctaBody">Every drop becomes an episode. Subscribe and follow along.</p>
+      </div>
+      <div class="links">
+        <a class="social-btn yt" id="yt-btn" href="#" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8zM9.6 15.6V8.4l6.2 3.6-6.2 3.6z"/></svg>
+          <span data-i18n="ctaYoutube">YouTube</span>
+        </a>
+        <a class="social-btn ig" id="ig-btn" href="#" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.2c3.2 0 3.6 0 4.9.07 1.17.05 1.8.25 2.23.41.56.22.96.48 1.38.9.42.42.68.82.9 1.38.16.42.36 1.06.41 2.23.06 1.3.07 1.69.07 4.9s0 3.6-.07 4.9c-.05 1.17-.25 1.8-.41 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.42.16-1.06.36-2.23.41-1.3.06-1.69.07-4.9.07s-3.6 0-4.9-.07c-1.17-.05-1.8-.25-2.23-.41a3.7 3.7 0 0 1-1.38-.9 3.7 3.7 0 0 1-.9-1.38c-.16-.42-.36-1.06-.41-2.23C2.2 15.6 2.2 15.2 2.2 12s0-3.6.07-4.9c.05-1.17.25-1.8.41-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.42-.16 1.06-.36 2.23-.41C8.4 2.2 8.8 2.2 12 2.2z"/></svg>
+          <span data-i18n="ctaInstagram">Instagram</span>
+        </a>
+      </div>
+    </section>
+
+    <footer class="site">
+      <p data-i18n="footer">Built for the PinDrop Challenge · drops are random &amp; for fun — explore safely and respect private property.</p>
+    </footer>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+  "use strict";
+
+  /* ============================================================
+   *  CONFIG  — tweak these
+   * ============================================================ */
+  const CONFIG = {
+    RADIUS_KM: 100,                 // how far a drop can land from you
+    EPOCH: "2026-06-20",            // launch date → "Drop No." counter starts at 1 here
+    SEED_SALT: "pindrop-challenge", // change to globally reshuffle the daily sequence
+    // Manual fallback origin (used if GPS is denied / unavailable).
+    FALLBACK_ORIGIN: { lat: 35.6892, lng: 51.3890, name: "Tehran" },
+    SOCIAL: {
+      youtube:   "https://youtube.com/@pindrop-challenge?si=3Px7XHZXy5VJ1P6N",
+      instagram: "https://www.instagram.com/ebi.n.94/"
+    }
+  };
+
+  /* ============================================================
+   *  i18n  — English + Persian (Farsi)
+   * ============================================================ */
+  const I18N = {
+    en: {
+      _dir: "ltr",
+      brand: "PinDrop Challenge",
+      brandTag: "One random drop a day. Go find out what's there.",
+      todayEyebrow: "Today's mission",
+      dropTitle: "Your drop is being plotted…",
+      dropTitleReady: "Today's drop is locked in 🎯",
+      dropNoLabel: "Drop No.",
+      statusLocating: "Locating you… allow location to get today's drop.",
+      statusReady: "Drop pinned for today. Come back tomorrow for a new one.",
+      statusDenied: "Location blocked. Set a starting point manually below.",
+      statusFallback: "Using fallback origin: ",
+      statusError: "Couldn't read GPS. Set a starting point manually below.",
+      statCoords: "Coordinates",
+      statDistance: "Distance",
+      statBearing: "Bearing",
+      actDirections: "🧭 Directions",
+      actGmaps: "Google Maps",
+      actOsm: "OpenStreetMap",
+      actShare: "🔗 Share drop",
+      actManual: "Set location manually",
+      manualTitle: "Set your starting point",
+      manualHint: "No GPS? Enter coordinates, or use the fallback city. Today's drop is plotted from here.",
+      labelLat: "Latitude",
+      labelLng: "Longitude",
+      manualGo: "Plot drop",
+      manualCity: "Use fallback city",
+      how1Title: "Allow location",
+      how1Body: "The app reads where you are — it never leaves your device.",
+      how2Title: "Get your drop",
+      how2Body: "A single random point is pinned within reach. Same point all day.",
+      how3Title: "Go & film it",
+      how3Body: "Head to the coordinate, see what you find, share the adventure.",
+      ctaTitle: "Watch the challenge unfold",
+      ctaBody: "Every drop becomes an episode. Subscribe and follow along.",
+      ctaYoutube: "YouTube",
+      ctaInstagram: "Instagram",
+      footer: "Built for the PinDrop Challenge · drops are random & for fun — explore safely and respect private property.",
+      shareTitle: "Today's PinDrop",
+      shareText: "Today's PinDrop Challenge target:",
+      copied: "Drop link copied!",
+      youMarker: "You are here",
+      dropMarker: "Today's drop",
+      invalidCoords: "Please enter valid coordinates.",
+      km: "km", away: "away",
+      N:"N",NE:"NE",E:"E",SE:"SE",S:"S",SW:"SW",W:"W",NW:"NW"
+    },
+    fa: {
+      _dir: "rtl",
+      brand: "چالش پین‌دراپ",
+      brandTag: "هر روز یک نقطه‌ی تصادفی. برو ببین آنجا چه خبر است.",
+      todayEyebrow: "مأموریت امروز",
+      dropTitle: "در حال تعیین نقطه‌ی امروز…",
+      dropTitleReady: "نقطه‌ی امروز مشخص شد 🎯",
+      dropNoLabel: "دراپ شماره",
+      statusLocating: "در حال یافتن موقعیت شما… برای دریافت نقطه، دسترسی مکان را اجازه دهید.",
+      statusReady: "نقطه‌ی امروز ثبت شد. فردا برای نقطه‌ی تازه برگرد.",
+      statusDenied: "دسترسی مکان مسدود است. نقطه‌ی شروع را پایین دستی وارد کن.",
+      statusFallback: "استفاده از مبدأ پیش‌فرض: ",
+      statusError: "خواندن موقعیت ممکن نشد. نقطه‌ی شروع را دستی وارد کن.",
+      statCoords: "مختصات",
+      statDistance: "فاصله",
+      statBearing: "جهت",
+      actDirections: "🧭 مسیریابی",
+      actGmaps: "گوگل مپ",
+      actOsm: "اوپن‌استریت‌مپ",
+      actShare: "🔗 اشتراک نقطه",
+      actManual: "تعیین دستی موقعیت",
+      manualTitle: "نقطه‌ی شروع خود را تعیین کنید",
+      manualHint: "GPS ندارید؟ مختصات را وارد کنید یا از شهر پیش‌فرض استفاده کنید. نقطه‌ی امروز از اینجا حساب می‌شود.",
+      labelLat: "عرض جغرافیایی",
+      labelLng: "طول جغرافیایی",
+      manualGo: "تعیین نقطه",
+      manualCity: "استفاده از شهر پیش‌فرض",
+      how1Title: "اجازه‌ی دسترسی مکان",
+      how1Body: "برنامه موقعیت شما را می‌خواند — این اطلاعات از دستگاه شما خارج نمی‌شود.",
+      how2Title: "نقطه‌ات را بگیر",
+      how2Body: "یک نقطه‌ی تصادفی در دسترس ثبت می‌شود. تمام روز همان نقطه می‌ماند.",
+      how3Title: "برو و فیلم بگیر",
+      how3Body: "به سمت مختصات برو، ببین چه پیدا می‌کنی و ماجرا را به اشتراک بگذار.",
+      ctaTitle: "ماجرا را دنبال کن",
+      ctaBody: "هر نقطه یک قسمت تازه می‌شود. سابسکرایب کن و همراه باش.",
+      ctaYoutube: "یوتیوب",
+      ctaInstagram: "اینستاگرام",
+      footer: "ساخته‌شده برای چالش پین‌دراپ · نقطه‌ها تصادفی و برای سرگرمی‌اند — با احتیاط بگرد و به حریم خصوصی احترام بگذار.",
+      shareTitle: "پین‌دراپ امروز",
+      shareText: "نقطه‌ی امروزِ چالش پین‌دراپ:",
+      copied: "لینک نقطه کپی شد!",
+      youMarker: "شما اینجا هستید",
+      dropMarker: "نقطه‌ی امروز",
+      invalidCoords: "لطفاً مختصات معتبر وارد کنید.",
+      km: "کیلومتر", away: "فاصله",
+      N:"شمال",NE:"شمال‌شرق",E:"شرق",SE:"جنوب‌شرق",S:"جنوب",SW:"جنوب‌غرب",W:"غرب",NW:"شمال‌غرب"
+    }
+  };
+
+  /* ============================================================
+   *  Storage  — localStorage with in-memory fallback
+   * ============================================================ */
+  const store = (() => {
+    let ok = false;
+    try {
+      const k = "__pindrop_test__";
+      localStorage.setItem(k, "1"); localStorage.removeItem(k);
+      ok = true;
+    } catch (_) { ok = false; }
+    const mem = {};
+    return {
+      get(k) { try { return ok ? localStorage.getItem(k) : (k in mem ? mem[k] : null); } catch (_) { return k in mem ? mem[k] : null; } },
+      set(k, v) { try { if (ok) localStorage.setItem(k, v); else mem[k] = v; } catch (_) { mem[k] = v; } }
+    };
+  })();
+
+  /* ============================================================
+   *  Geo + math helpers
+   * ============================================================ */
+  const R_EARTH = 6371; // km
+  const toRad = d => d * Math.PI / 180;
+  const toDeg = r => r * 180 / Math.PI;
+
+  // Destination point given origin, bearing (deg) and distance (km)
+  function destination(lat, lng, bearingDeg, distKm) {
+    const ang = distKm / R_EARTH;
+    const brng = toRad(bearingDeg);
+    const lat1 = toRad(lat), lng1 = toRad(lng);
+    const lat2 = Math.asin(Math.sin(lat1) * Math.cos(ang) + Math.cos(lat1) * Math.sin(ang) * Math.cos(brng));
+    const lng2 = lng1 + Math.atan2(
+      Math.sin(brng) * Math.sin(ang) * Math.cos(lat1),
+      Math.cos(ang) - Math.sin(lat1) * Math.sin(lat2)
+    );
+    return { lat: toDeg(lat2), lng: ((toDeg(lng2) + 540) % 360) - 180 };
+  }
+
+  function haversine(aLat, aLng, bLat, bLng) {
+    const dLat = toRad(bLat - aLat), dLng = toRad(bLng - aLng);
+    const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+    return R_EARTH * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+  }
+
+  const COMPASS = ["N","NE","E","SE","S","SW","W","NW"];
+  const compass8 = deg => COMPASS[Math.round(deg / 45) % 8];
+
+  /* Deterministic PRNG seeded from the date string */
+  function hashStr(str) {
+    let h = 1779033703 ^ str.length;
+    for (let i = 0; i < str.length; i++) {
+      h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+    return h >>> 0;
+  }
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /* Local calendar-day key, e.g. "2026-06-20" */
+  function dayKey(d = new Date()) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+  function dropNumber(key) {
+    const a = new Date(CONFIG.EPOCH + "T00:00:00");
+    const b = new Date(key + "T00:00:00");
+    return Math.max(1, Math.round((b - a) / 86400000) + 1);
+  }
+
+  /* Compute today's vector + target from an origin (deterministic per day) */
+  function computeDrop(origin, key) {
+    const rng = mulberry32(hashStr(CONFIG.SEED_SALT + "|" + key));
+    const bearing = rng() * 360;
+    // sqrt → uniform distribution over the disc area (not biased toward center)
+    const distance = CONFIG.RADIUS_KM * Math.sqrt(rng());
+    const target = destination(origin.lat, origin.lng, bearing, distance);
+    return { bearing, distance, target };
+  }
+
+  /* ============================================================
+   *  State + DOM
+   * ============================================================ */
+  let LANG = "en";
+  let MAP = null, LAYER = null;
+  let CURRENT = null; // { origin, target, bearing, distance, key }
+
+  const $ = sel => document.querySelector(sel);
+  const t = k => (I18N[LANG][k] ?? I18N.en[k] ?? k);
+
+  // Convert Latin digits to Persian when in fa
+  function num(s) {
+    s = String(s);
+    if (LANG !== "fa") return s;
+    return s.replace(/[0-9]/g, d => "۰۱۲۳۴۵۶۷۸۹"[d]);
+  }
+
+  /* ---------- language ---------- */
+  function applyLang(lang) {
+    LANG = I18N[lang] ? lang : "en";
+    const dict = I18N[LANG];
+    document.documentElement.lang = LANG;
+    document.documentElement.dir = dict._dir;
+    document.querySelectorAll("[data-i18n]").forEach(el => {
+      const key = el.getAttribute("data-i18n");
+      if (dict[key] != null) el.textContent = dict[key];
+    });
+    $("#lang-en").setAttribute("aria-pressed", String(LANG === "en"));
+    $("#lang-fa").setAttribute("aria-pressed", String(LANG === "fa"));
+    store.set("pindrop-lang", LANG);
+    if (CURRENT) render(CURRENT); // re-render numbers/labels in new language
+  }
+
+  /* ---------- toast ---------- */
+  let toastTimer = null;
+  function toast(msg) {
+    const el = $("#toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 2400);
+  }
+
+  /* ---------- status line ---------- */
+  function status(text, pulsing) {
+    $("#status-text").textContent = text;
+    $("#status-dot").style.display = pulsing ? "" : "none";
+  }
+
+  /* ---------- map ---------- */
+  function drawMap(origin, target, distance) {
+    const TILE = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+    const ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+
+    if (!MAP) {
+      MAP = L.map("map", { scrollWheelZoom: false, attributionControl: true });
+      L.control.scale({ imperial: false }).addTo(MAP);
+    }
+    if (LAYER) { MAP.removeLayer(LAYER); }
+    LAYER = L.layerGroup().addTo(MAP);
+    L.tileLayer(TILE, { maxZoom: 19, attribution: ATTR }).addTo(LAYER);
+
+    // radius ring around origin
+    L.circle([origin.lat, origin.lng], {
+      radius: CONFIG.RADIUS_KM * 1000,
+      color: "#0d9488", weight: 1.5, fillColor: "#0d9488", fillOpacity: 0.05, dashArray: "6 6"
+    }).addTo(LAYER);
+
+    // origin marker
+    const youIcon = L.divIcon({
+      className: "", html: '<div style="width:16px;height:16px;border-radius:50%;background:#0d9488;border:3px solid #fff;box-shadow:0 0 0 2px #0d9488;"></div>',
+      iconSize: [16, 16], iconAnchor: [8, 8]
+    });
+    L.marker([origin.lat, origin.lng], { icon: youIcon, title: t("youMarker") })
+      .addTo(LAYER).bindPopup(t("youMarker"));
+
+    // drop marker (pin)
+    const dropIcon = L.divIcon({
+      className: "", html: '<div style="font-size:30px;line-height:1;filter:drop-shadow(0 3px 3px rgba(0,0,0,.3));transform:translate(-2px,-26px)">📍</div>',
+      iconSize: [30, 30], iconAnchor: [0, 0]
+    });
+    L.marker([target.lat, target.lng], { icon: dropIcon, title: t("dropMarker") })
+      .addTo(LAYER).bindPopup(t("dropMarker"));
+
+    // connecting line
+    L.polyline([[origin.lat, origin.lng], [target.lat, target.lng]], {
+      color: "#e11d48", weight: 2.5, dashArray: "2 8", opacity: 0.8
+    }).addTo(LAYER);
+
+    const bounds = L.latLngBounds([[origin.lat, origin.lng], [target.lat, target.lng]]);
+    MAP.fitBounds(bounds.pad(0.35));
+    setTimeout(() => MAP.invalidateSize(), 50);
+  }
+
+  /* ---------- render everything ---------- */
+  function render(drop) {
+    CURRENT = drop;
+    const { origin, target, bearing, distance, key } = drop;
+
+    $("#drop-title").textContent = t("dropTitleReady");
+    $("#dropno-n").textContent = num(dropNumber(key));
+
+    const lat = target.lat.toFixed(5), lng = target.lng.toFixed(5);
+    $("#stat-coords").textContent = num(lat) + ", " + num(lng);
+    $("#stat-distance").innerHTML = num(distance.toFixed(1)) + ' <small>' + t("km") + '</small>';
+    $("#stat-bearing").innerHTML =
+      '<span class="compass-emoji">🧭</span> ' + num(Math.round(bearing)) + '° <small>' + t(compass8(bearing)) + '</small>';
+
+    // links
+    const g = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+    const dir = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+    const osm = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=14/${lat}/${lng}`;
+    $("#act-gmaps").href = g;
+    $("#act-directions").href = dir;
+    $("#act-osm").href = osm;
+
+    drawMap(origin, target, distance);
+    status(t("statusReady"), false);
+  }
+
+  /* ---------- set origin → compute / load drop for today ---------- */
+  function setOrigin(origin, persist = true) {
+    const key = dayKey();
+    const drop = computeDrop(origin, key);
+    const full = { origin, target: drop.target, bearing: drop.bearing, distance: drop.distance, key };
+    if (persist) store.set("pindrop-drop", JSON.stringify(full));
+    render(full);
+  }
+
+  /* ---------- boot ---------- */
+  function loadStoredForToday() {
+    try {
+      const raw = store.get("pindrop-drop");
+      if (!raw) return null;
+      const d = JSON.parse(raw);
+      if (d && d.key === dayKey() && d.origin && d.target) return d;
+    } catch (_) {}
+    return null;
+  }
+
+  function requestGeo() {
+    if (!("geolocation" in navigator)) {
+      status(t("statusError"), false);
+      openManual();
+      return;
+    }
+    status(t("statusLocating"), true);
+    navigator.geolocation.getCurrentPosition(
+      pos => setOrigin({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      err => {
+        status(t("statusDenied"), false);
+        openManual();
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  }
+
+  function openManual() {
+    $("#manual-panel").classList.remove("hidden");
+    $("#manual-panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  /* ---------- share ---------- */
+  async function shareDrop() {
+    if (!CURRENT) return;
+    const lat = CURRENT.target.lat.toFixed(5), lng = CURRENT.target.lng.toFixed(5);
+    const gmaps = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+    const text = `${t("shareText")} ${lat}, ${lng}`;
+    const data = { title: t("shareTitle"), text, url: gmaps };
+    try {
+      if (navigator.share) { await navigator.share(data); return; }
+    } catch (_) { /* user cancelled — fall through */ }
+    try {
+      await navigator.clipboard.writeText(`${text}\n${gmaps}`);
+      toast(t("copied"));
+    } catch (_) {
+      toast(`${lat}, ${lng}`);
+    }
+  }
+
+  /* ============================================================
+   *  Wire up
+   * ============================================================ */
+  function init() {
+    // social links from config
+    $("#yt-icon").href = CONFIG.SOCIAL.youtube;
+    $("#yt-btn").href = CONFIG.SOCIAL.youtube;
+    $("#ig-icon").href = CONFIG.SOCIAL.instagram;
+    $("#ig-btn").href = CONFIG.SOCIAL.instagram;
+
+    // language: stored → browser → en
+    const stored = store.get("pindrop-lang");
+    const guess = (navigator.language || "en").toLowerCase().startsWith("fa") ? "fa" : "en";
+    applyLang(stored || guess);
+
+    $("#lang-en").addEventListener("click", () => applyLang("en"));
+    $("#lang-fa").addEventListener("click", () => applyLang("fa"));
+
+    $("#act-manual").addEventListener("click", openManual);
+    $("#act-share").addEventListener("click", shareDrop);
+
+    $("#manual-go").addEventListener("click", () => {
+      const lat = parseFloat($("#in-lat").value);
+      const lng = parseFloat($("#in-lng").value);
+      if (!isFinite(lat) || !isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        toast(t("invalidCoords")); return;
+      }
+      setOrigin({ lat, lng });
+      $("#manual-panel").classList.add("hidden");
+    });
+
+    $("#manual-city").addEventListener("click", () => {
+      const o = CONFIG.FALLBACK_ORIGIN;
+      status(t("statusFallback") + o.name, false);
+      setOrigin({ lat: o.lat, lng: o.lng });
+      $("#manual-panel").classList.add("hidden");
+    });
+
+    // Today already drawn? reuse it (no GPS needed). Otherwise request location.
+    const existing = loadStoredForToday();
+    if (existing) {
+      render(existing);
+    } else {
+      requestGeo();
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+  </script>
+</body>
+</html>
