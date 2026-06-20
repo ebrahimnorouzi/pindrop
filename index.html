@@ -272,6 +272,7 @@
     .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 24px; }
     .settings-grid .row { display: flex; flex-direction: column; gap: 8px; }
     .settings-grid .row > .lbl { font-size: .8rem; font-weight: 700; color: var(--ink-soft); }
+    .settings-grid .row .sub { font-size: .74rem; color: var(--ink-soft); }
     input[type="range"] { width: 100%; accent-color: var(--accent); }
     .range-val { font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
     .hidden { display: none !important; }
@@ -409,6 +410,22 @@
             <button type="button" id="set-en">English</button>
             <button type="button" id="set-fa" lang="fa">فارسی</button>
           </div>
+        </div>
+        <div class="row">
+          <span class="lbl" data-i18n="setWild">Properly wild</span>
+          <div class="seg" role="group">
+            <button type="button" id="wild-off" data-i18n="offWord">Off</button>
+            <button type="button" id="wild-on" data-i18n="onWord">On</button>
+          </div>
+          <span class="sub" data-i18n="wildHint">Land only — skips drops that land on water 🌊</span>
+        </div>
+        <div class="row">
+          <span class="lbl" data-i18n="setReanchor">Live re-anchor</span>
+          <div class="seg" role="group">
+            <button type="button" id="rean-off" data-i18n="offWord">Off</button>
+            <button type="button" id="rean-on" data-i18n="onWord">On</button>
+          </div>
+          <span class="sub" data-i18n="reanchorHint">No fixed target — it stays ahead of you as you move 🛰️</span>
         </div>
       </div>
     </section>
@@ -626,6 +643,14 @@
       settingsTitle: "Settings", settingsHint: "Tune the challenge to your taste. Changes are saved on this device.",
       setRadius: "Drop radius", setUnits: "Units", setTheme: "Theme", setLang: "Language",
       themeLight: "Light", themeDark: "Dark", themeAuto: "Auto",
+      setWild: "Properly wild", wildHint: "Land only — skips drops that land on water 🌊",
+      setReanchor: "Live re-anchor", reanchorHint: "No fixed target — it stays ahead of you as you move 🛰️",
+      onWord: "On", offWord: "Off",
+      statusWild: "Finding solid ground…",
+      statusWildFail: "Couldn't verify terrain — using the default drop.",
+      statusReanchor: "Live re-anchor on — the target stays one radius ahead as you move.",
+      titleReanchor: "Live re-anchor — it moves with you 🛰️",
+      reanchorNoGeo: "Live re-anchor needs location access.",
       cardTitle: "Shareable drop card", cardDownload: "⬇️ Download", cardShare: "🔗 Share image", cardClose: "Close",
       cardEyebrow: "TODAY'S TARGET", cardCoords: "COORDINATES", cardDist: "DISTANCE", cardBear: "BEARING",
       shareTitle: "Today's PinDrop", shareText: "Today's PinDrop Challenge target:",
@@ -672,6 +697,14 @@
       settingsTitle: "تنظیمات", settingsHint: "چالش را به سلیقه‌ات تنظیم کن. تغییرات روی همین دستگاه ذخیره می‌شود.",
       setRadius: "شعاع دراپ", setUnits: "واحد", setTheme: "پوسته", setLang: "زبان",
       themeLight: "روشن", themeDark: "تیره", themeAuto: "خودکار",
+      setWild: "کاملاً وحشی", wildHint: "فقط خشکی — نقطه‌هایی که روی آب می‌افتند رد می‌شوند 🌊",
+      setReanchor: "لنگر زنده", reanchorHint: "بدون هدف ثابت — با حرکت تو همیشه جلوتر می‌ماند 🛰️",
+      onWord: "روشن", offWord: "خاموش",
+      statusWild: "در حال یافتن خشکی…",
+      statusWildFail: "بررسی زمین ممکن نشد — از نقطه‌ی پیش‌فرض استفاده شد.",
+      statusReanchor: "لنگر زنده روشن است — هدف با حرکت تو همیشه یک شعاع جلوتر می‌ماند.",
+      titleReanchor: "لنگر زنده — با تو حرکت می‌کند 🛰️",
+      reanchorNoGeo: "لنگر زنده به دسترسی مکان نیاز دارد.",
       cardTitle: "کارت قابل‌اشتراک", cardDownload: "⬇️ دانلود", cardShare: "🔗 اشتراک تصویر", cardClose: "بستن",
       cardEyebrow: "هدف امروز", cardCoords: "مختصات", cardDist: "فاصله", cardBear: "جهت",
       shareTitle: "پین‌دراپ امروز", shareText: "نقطه‌ی امروزِ چالش پین‌دراپ:",
@@ -739,11 +772,31 @@
     const a = new Date(CONFIG.EPOCH + "T00:00:00"), b = new Date(key + "T00:00:00");
     return Math.max(1, Math.round((b - a) / 86400000) + 1);
   }
-  function computeDrop(origin, key, radiusKm) {
+  // Deterministic candidate sequence for a day. Candidate 0 is the plain daily drop;
+  // extra candidates (used by "properly wild") continue the same seeded stream.
+  function candidates(origin, key, radiusKm, n) {
     const rng = mulberry32(hashStr(CONFIG.SEED_SALT + "|" + key));
-    const bearing = rng() * 360;
-    const distance = radiusKm * Math.sqrt(rng()); // sqrt → uniform over disc area
-    return { bearing, distance, target: destination(origin.lat, origin.lng, bearing, distance) };
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const bearing = rng() * 360;
+      const distance = radiusKm * Math.sqrt(rng()); // sqrt → uniform over disc area
+      out.push({ bearing, distance, target: destination(origin.lat, origin.lng, bearing, distance) });
+    }
+    return out;
+  }
+  // The daily heading is independent of origin (first draw of the stream) — used by re-anchor mode.
+  function dailyBearing(key) { return candidates({ lat: 0, lng: 0 }, key, 1, 1)[0].bearing; }
+
+  // Best-effort land check via Open-Meteo elevation (free, no key, CORS-enabled).
+  // Ocean points report ~0; we treat elevation > 0 as land. Degrades gracefully when blocked.
+  async function elevations(cands) {
+    const lat = cands.map(c => c.target.lat.toFixed(4)).join(",");
+    const lng = cands.map(c => c.target.lng.toFixed(4)).join(",");
+    const url = `https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lng}`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error("elevation lookup failed");
+    const j = await r.json();
+    return Array.isArray(j.elevation) ? j.elevation : [];
   }
 
   /* ============================================================
@@ -753,6 +806,7 @@
   let MAP = null, TILELAYER = null, OVERLAY = null;
   let CURRENT = null;     // { origin, target, bearing, distance, key, radius }
   let compassOn = false, targetBearing = 0;
+  let WILD = false, REANCHOR = false, ORIGIN = null, watchId = null;
 
   const $ = s => document.querySelector(s);
   const t = k => (I18N[LANG][k] ?? I18N.en[k] ?? k);
@@ -793,7 +847,7 @@
     });
     store.set("pindrop-lang", LANG);
     syncControls();
-    if (CURRENT) render(CURRENT, false); else renderHistory();
+    refresh();
   }
 
   function syncControls() {
@@ -806,6 +860,8 @@
     $("#ms-light").classList.toggle("active", eff === "light");
     $("#ms-dark").classList.toggle("active", eff === "dark");
     $("#ms-sat").classList.toggle("active", MAPSTYLE === "satellite");
+    set("#wild-on", WILD); set("#wild-off", !WILD);
+    set("#rean-on", REANCHOR); set("#rean-off", !REANCHOR);
     $("#radius-val").textContent = fa(Math.round(kmToUnit(RADIUS)) || RADIUS);
     $("#radius-unit").textContent = t(UNITS);
     $("#set-radius").value = RADIUS;
@@ -829,7 +885,7 @@
     if (TILELAYER) MAP.removeLayer(TILELAYER);
     TILELAYER = L.tileLayer(cfg.url, { maxZoom: cfg.max, attribution: cfg.attr }).addTo(MAP);
   }
-  function drawOverlay(origin, target) {
+  function drawOverlay(origin, target, fit = true) {
     if (OVERLAY) MAP.removeLayer(OVERLAY);
     OVERLAY = L.layerGroup().addTo(MAP);
     L.circle([origin.lat, origin.lng], { radius: RADIUS * 1000, color: "#0d9488", weight: 1.5, fillColor: "#0d9488", fillOpacity: 0.05, dashArray: "6 6" }).addTo(OVERLAY);
@@ -838,17 +894,17 @@
     const dropIcon = L.divIcon({ className: "", html: '<div style="font-size:32px;line-height:1;filter:drop-shadow(0 3px 3px rgba(0,0,0,.35));transform:translate(-3px,-28px)">📍</div>', iconSize: [32,32], iconAnchor: [0,0] });
     L.marker([target.lat, target.lng], { icon: dropIcon, title: t("dropMarker") }).addTo(OVERLAY).bindPopup(t("dropMarker"));
     L.polyline([[origin.lat, origin.lng], [target.lat, target.lng]], { color: "#e11d48", weight: 2.5, dashArray: "2 8", opacity: 0.85 }).addTo(OVERLAY);
-    MAP.fitBounds(L.latLngBounds([[origin.lat, origin.lng], [target.lat, target.lng]]).pad(0.35));
+    if (fit) MAP.fitBounds(L.latLngBounds([[origin.lat, origin.lng], [target.lat, target.lng]]).pad(0.35));
     setTimeout(() => MAP.invalidateSize(), 60);
   }
 
   /* ---------- render ---------- */
-  function render(drop, animate = true) {
+  function paint(drop, opts = {}) {
     CURRENT = drop;
     const { origin, target, bearing, distance, key } = drop;
     targetBearing = bearing;
 
-    $("#drop-title").textContent = t("dropTitleReady");
+    $("#drop-title").textContent = opts.live ? t("titleReanchor") : t("dropTitleReady");
     $("#dropno-n").textContent = fa(dropNumber(key));
 
     const lat = target.lat.toFixed(5), lng = target.lng.toFixed(5);
@@ -860,24 +916,61 @@
     $("#act-directions").href = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
     $("#act-osm").href = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=14/${lat}/${lng}`;
 
-    ensureMap(); setTiles(); drawOverlay(origin, target);
-    status(t("statusReady"), false);
-    if (animate) requestAnimationFrame(() => $("#hero").classList.add("revealed"));
-    else $("#hero").classList.add("revealed");
+    ensureMap(); setTiles(); drawOverlay(origin, target, opts.fit !== false);
+    status(opts.live ? t("statusReanchor") : t("statusReady"), !!opts.live);
+    if (opts.animate === false) $("#hero").classList.add("revealed");
+    else requestAnimationFrame(() => $("#hero").classList.add("revealed"));
     updateNeedle();
   }
+  function render(drop, animate = true) { paint(drop, { animate }); }
+  function renderLive(drop, fit) { paint(drop, { live: true, fit, animate: false }); }
+  function refresh() { if (CURRENT) paint(CURRENT, { live: REANCHOR, animate: false, fit: false }); else renderHistory(); }
 
   /* ---------- set origin / re-plot ---------- */
-  function setOrigin(origin, persist = true) {
+  async function setOrigin(origin, persist = true) {
+    ORIGIN = origin;
     const key = dayKey();
-    const d = computeDrop(origin, key, RADIUS);
-    const full = { origin, target: d.target, bearing: d.bearing, distance: d.distance, key, radius: RADIUS };
+    const cands = candidates(origin, key, RADIUS, WILD ? 14 : 1);
+    let pick = cands[0], note = null;
+    if (WILD && cands.length > 1) {
+      status(t("statusWild"), true);
+      try {
+        const els = await elevations(cands);
+        const idx = els.findIndex(e => typeof e === "number" && e > 0);
+        if (idx >= 0) pick = cands[idx]; else note = t("statusWildFail");
+      } catch (_) { note = t("statusWildFail"); }
+    }
+    const full = { origin, target: pick.target, bearing: pick.bearing, distance: pick.distance, key, radius: RADIUS, wild: WILD };
     if (persist) { setJSON("pindrop-drop", full); logDrop(full); }
     render(full);
+    if (note) status(note, false);
   }
   function replot() {
-    if (!CURRENT) { syncControls(); return; }
-    setOrigin(CURRENT.origin, true);
+    if (REANCHOR || (!CURRENT && !ORIGIN)) { syncControls(); return; }
+    setOrigin((CURRENT && CURRENT.origin) || ORIGIN, true);
+  }
+
+  /* ---------- live re-anchor mode: target always RADIUS away, follows you ---------- */
+  function startReanchor() {
+    if (!("geolocation" in navigator)) { toast(t("reanchorNoGeo")); REANCHOR = false; syncControls(); return; }
+    REANCHOR = true; syncControls();
+    let first = true;
+    status(t("statusLocating"), true);
+    watchId = navigator.geolocation.watchPosition(pos => {
+      const origin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      ORIGIN = origin;
+      const b = dailyBearing(dayKey());
+      const target = destination(origin.lat, origin.lng, b, RADIUS);
+      renderLive({ origin, target, bearing: b, distance: RADIUS, key: dayKey(), radius: RADIUS, live: true }, first);
+      first = false;
+    }, () => { toast(t("reanchorNoGeo")); }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 });
+  }
+  function stopReanchor() {
+    REANCHOR = false; syncControls();
+    if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+    const ex = loadStoredForToday();
+    if (ex) render(ex);
+    else if (ORIGIN) setOrigin(ORIGIN);
   }
 
   /* ---------- history / streak ---------- */
@@ -1102,6 +1195,7 @@
     UNITS = store.get("pindrop-units") || "km";
     MAPSTYLE = store.get("pindrop-mapstyle") || "auto";
     RADIUS = parseInt(store.get("pindrop-radius"), 10) || CONFIG.RADIUS_KM;
+    WILD = store.get("pindrop-wild") === "1";
     applyTheme();
 
     const storedLang = store.get("pindrop-lang");
@@ -1120,10 +1214,17 @@
     $("#th-light").onclick = () => { THEME = "light"; store.set("pindrop-theme", THEME); applyTheme(); };
     $("#th-dark").onclick  = () => { THEME = "dark";  store.set("pindrop-theme", THEME); applyTheme(); };
     $("#th-auto").onclick  = () => { THEME = "auto";  store.set("pindrop-theme", THEME); applyTheme(); };
-    $("#unit-km").onclick = () => { UNITS = "km"; store.set("pindrop-units", UNITS); syncControls(); if (CURRENT) render(CURRENT, false); else renderHistory(); };
-    $("#unit-mi").onclick = () => { UNITS = "mi"; store.set("pindrop-units", UNITS); syncControls(); if (CURRENT) render(CURRENT, false); else renderHistory(); };
+    $("#unit-km").onclick = () => { UNITS = "km"; store.set("pindrop-units", UNITS); syncControls(); refresh(); };
+    $("#unit-mi").onclick = () => { UNITS = "mi"; store.set("pindrop-units", UNITS); syncControls(); refresh(); };
     $("#set-radius").oninput = (e) => { RADIUS = parseInt(e.target.value, 10); syncControls(); };
     $("#set-radius").onchange = () => { store.set("pindrop-radius", RADIUS); replot(); };
+
+    // wild (land-only) + live re-anchor toggles
+    const setWild = (on) => { WILD = on; store.set("pindrop-wild", on ? "1" : "0"); syncControls(); if (!REANCHOR && (CURRENT || ORIGIN)) setOrigin((CURRENT && CURRENT.origin) || ORIGIN, true); };
+    $("#wild-on").onclick = () => setWild(true);
+    $("#wild-off").onclick = () => setWild(false);
+    $("#rean-on").onclick = () => { if (!REANCHOR) startReanchor(); };
+    $("#rean-off").onclick = () => { if (REANCHOR) stopReanchor(); };
 
     // map style
     $("#ms-light").onclick = () => { MAPSTYLE = "light"; store.set("pindrop-mapstyle", MAPSTYLE); setTiles(); syncControls(); };

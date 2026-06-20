@@ -13,6 +13,8 @@ day**, so a reload shows the same target; a fresh one is drawn at local midnight
 - **Coordinates, distance, bearing + compass** on a Leaflet map with the radius ring, "you are here" marker, and a line to the target.
 - **Map style switcher** — Light / Dark / Satellite (CARTO + Esri tiles, no key).
 - **🧲 Live compass navigation** — uses the device's orientation sensor to point a needle at today's drop with "turn left/right" guidance (great while filming on location).
+- **🌊 "Properly wild" land-only filter** (optional) — skips drops that land on water by checking candidate points against the free, no-key [Open-Meteo elevation API](https://open-meteo.com/), keeping the deterministic daily sequence. Falls back to the normal drop if the lookup is unavailable.
+- **🛰️ Live re-anchor mode** (optional) — drops the fixed daily target and instead keeps the point exactly one radius ahead of you in the day's heading, updating live as you move (`watchPosition`). Pairs perfectly with the compass.
 - **🖼️ Shareable drop-card generator** — renders a branded 1080×1080 image (coords, distance, bearing, mini-compass, Drop No., date, channel handle) you can **download or share** straight into a video intro / story.
 - **📊 Expedition log** — day-streak counter, total drops, total distance, and your recent drops with quick map links.
 - **⏱️ Live countdown** to the next drop; auto-refreshes at midnight.
@@ -43,13 +45,13 @@ Everything tweakable lives in the `CONFIG` object at the top of the `<script>` i
 
 ## 📦 Constraints
 Single self-contained `index.html`: no build step, no backend, no framework, no bundler.
-External dependencies are **Leaflet** (via cdnjs), **CARTO** + **Esri** map tiles, and **Google Fonts**
-(Inter / Vazirmatn) — the fonts degrade gracefully to system fonts if blocked.
+External dependencies are **Leaflet** (via cdnjs), **CARTO** + **Esri** map tiles, **Google Fonts**
+(Inter / Vazirmatn, degrade gracefully to system fonts), and the **Open-Meteo elevation API** —
+used only when the optional "Properly wild" filter is on, and only at runtime in the browser (no key).
 
 ## 🧭 Backlog / ideas
-- "Water only" / "land only" filter for the drop.
-- Exclude-roads / "properly wild" mode.
-- Optional live re-anchor mode (always X km from your current position — no fixed target).
+- "Water only" mode (the inverse of the land-only filter).
+- Exclude-roads / remoteness scoring for an even wilder drop.
 - Offline support via a service worker (needs a second file, so it's intentionally left out for now).
 
 ---
